@@ -9,14 +9,15 @@ from huggingface_hub import login
 login("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")
 
 quant_config=BitsAndBytesConfig(load_in_8bit=True)
-use_quant_config=True
+use_quant_config=False
 device='cuda' if torch.cuda.is_available() else "cpu"
-# model_id='meta-llama/Llama-3.2-1B'
+# model_id='meta-llama/Llama-3.2-4B'
 model_id='meta-llama/Llama-2-7b'
 tokenizer=AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_id,padding_side='right')
 llm_model=AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_id,
-                                               torch_dtype=torch.bfloat16,
-                                               quantization_config=quant_config if use_quant_config else None).to(device)#attn_implementation='eager',
+                                               torch_dtype=torch.float32,
+                                               attn_implementation='eager',
+                                               quantization_config=quant_config if use_quant_config else None).to(device)
 
 
 def prompt_generator(data:dict):
@@ -218,7 +219,7 @@ def evaluate_model(model, train_loader, vali_loader, device, eval_iter):
 best_val_accuracy = 0.0
 
 def train_model_simple(model, train_loader, val_loader, optimizer, device, num_epochs,
-                       eval_freq, eval_iter,scheduler,best_val_accuracy):
+                       eval_freq, eval_iter,scheduler,best_val_accuracy=0.75):
 
     train_losses, val_losses, track_tokens_seen = [], [], []
     tokens_seen, global_step = 0, -1
@@ -271,7 +272,7 @@ optimizer = torch.optim.AdamW(llm_model.parameters(), lr=5e-5, weight_decay=0.1)
 
 num_epochs = 3
 total_steps = len(train_loader) * num_epochs
-warmup_steps = int(0.1 * total_steps) 
+warmup_steps = int(0.2 * total_steps) 
 scheduler = get_cosine_schedule_with_warmup(
     optimizer,
     num_warmup_steps=warmup_steps,
@@ -280,7 +281,7 @@ scheduler = get_cosine_schedule_with_warmup(
 
 train_losses, val_losses, tokens_seen = train_model_simple(
     llm_model, train_loader, val_loader, optimizer, device,
-    num_epochs=num_epochs, eval_freq=40, eval_iter=25,scheduler=scheduler,best_val_accuracy=0.75
+    num_epochs=num_epochs, eval_freq=40, eval_iter=25,scheduler=scheduler
 )
 
 end_time = time.time()
